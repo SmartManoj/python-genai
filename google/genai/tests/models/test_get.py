@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,24 +21,47 @@ from ... import errors
 from ... import types
 from .. import pytest_helper
 
+
+test_http_options = {'api_version': 'v1', 'headers': {'test': 'headers'}}
+
 test_table: list[pytest_helper.TestTableItem] = [
     pytest_helper.TestTableItem(
         name='test_get_vertex_tuned_model',
-        parameters=types._GetModelParameters(model='models/7687416965014487040'),
+        parameters=types._GetModelParameters(
+            model='models/2171259487439028224'
+        ),
         exception_if_mldev='404',
     ),
     pytest_helper.TestTableItem(
         name='test_get_mldev_tuned_model',
         parameters=types._GetModelParameters(
-            model='tunedModels/generate-num-1896'
+            model='tunedModels/generatenum5443-ekrw7ie9wis23zbeogbw6jq8'
+        ),
+        exception_if_vertex='404',
+    ),
+    pytest_helper.TestTableItem(
+        name='test_get_vertex_tuned_model_with_http_options_in_method',
+        parameters=types._GetModelParameters(
+            model='models/2171259487439028224',
+            config={
+                'http_options': test_http_options,
+            },
+        ),
+        exception_if_mldev='404',
+    ),
+    pytest_helper.TestTableItem(
+        name='test_get_mldev_base_model_with_http_options_in_method',
+        parameters=types._GetModelParameters(
+            model='gemini-1.5-flash',
+            config={
+                'http_options': test_http_options,
+            },
         ),
         exception_if_vertex='404',
     ),
     pytest_helper.TestTableItem(
         name='test_get_base_model',
         parameters=types._GetModelParameters(model='gemini-1.5-flash'),
-        # TODO(b/382104121): Add test for base model once Vertex support it.
-        exception_if_vertex='404',
     ),
     pytest_helper.TestTableItem(
         name='test_get_base_model_with_models_prefix',
@@ -59,7 +82,7 @@ async def test_async_get_tuned_model(client):
   if client._api_client.vertexai:
     with pytest.raises(errors.ClientError) as e:
       await client.aio.models.get(model='tunedModels/generate-num-1896')
-      assert '404' in str(e)
+    assert '404' in str(e)
   else:
     response = await client.aio.models.get(
         model='tunedModels/generate-num-1896'
@@ -69,8 +92,14 @@ async def test_async_get_tuned_model(client):
 @pytest.mark.asyncio
 async def test_async_get_model(client):
   if client._api_client.vertexai:
-    response = await client.aio.models.get(model='models/7687416965014487040')
+    response = await client.aio.models.get(
+        model='models/7687416965014487040',
+        config={'http_options': test_http_options},
+    )
   else:
     with pytest.raises(errors.ClientError) as e:
-      await client.aio.models.get(model='models/7687416965014487040')
-      assert '404' in str(e)
+      await client.aio.models.get(
+          model='models/7687416965014487040',
+          config={'http_options': test_http_options},
+      )
+    assert '404' in str(e)

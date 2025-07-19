@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,12 +18,13 @@
 
 import os
 
+import pydantic
 import pytest
 
 from ... import types
 from .. import pytest_helper
 
-MODEL_NAME = 'imagen-3.0-capability-preview-0930'
+MODEL_NAME = 'imagen-3.0-capability-001'
 
 IMAGE_FILE_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../data/google.png')
@@ -39,7 +40,7 @@ BRIDGE_IMAGE_FILE_PATH = os.path.abspath(
 
 raw_ref_image = types.RawReferenceImage(
     reference_id=1,
-    reference_image=types.Image.from_file(IMAGE_FILE_PATH),
+    reference_image=types.Image.from_file(location=IMAGE_FILE_PATH),
 )
 
 mask_ref_image = types.MaskReferenceImage(
@@ -52,7 +53,7 @@ mask_ref_image = types.MaskReferenceImage(
 
 mask_ref_image_user_provided = types.MaskReferenceImage(
     reference_id=2,
-    reference_image=types.Image.from_file(MASK_FILE_PATH),
+    reference_image=types.Image.from_file(location=MASK_FILE_PATH),
     config=types.MaskReferenceConfig(
         mask_mode='MASK_MODE_USER_PROVIDED',
         mask_dilation=0.06,
@@ -61,7 +62,7 @@ mask_ref_image_user_provided = types.MaskReferenceImage(
 
 control_ref_image = types.ControlReferenceImage(
     reference_id=2,
-    reference_image=types.Image.from_file(MASK_FILE_PATH),
+    reference_image=types.Image.from_file(location=MASK_FILE_PATH),
     config=types.ControlReferenceConfig(
         control_type='CONTROL_TYPE_SCRIBBLE',
         # Backend creates the control image if this is set to True.
@@ -71,7 +72,7 @@ control_ref_image = types.ControlReferenceImage(
 
 style_ref_image_customization = types.StyleReferenceImage(
     reference_id=1,
-    reference_image=types.Image.from_file(IMAGE_FILE_PATH),
+    reference_image=types.Image.from_file(location=IMAGE_FILE_PATH),
     config=types.StyleReferenceConfig(
         style_description='glowing style',
     ),
@@ -79,7 +80,7 @@ style_ref_image_customization = types.StyleReferenceImage(
 
 subject_ref_image_customization = types.SubjectReferenceImage(
     reference_id=1,
-    reference_image=types.Image.from_file(IMAGE_FILE_PATH),
+    reference_image=types.Image.from_file(location=IMAGE_FILE_PATH),
     config=types.SubjectReferenceConfig(
         subject_type='SUBJECT_TYPE_PRODUCT',
         subject_description='A product logo that is a multi-colored letter G',
@@ -98,6 +99,7 @@ test_table: list[pytest_helper.TestTableItem] = [
                 'edit_mode': 'EDIT_MODE_INPAINT_INSERTION',
                 'number_of_images': 1,
                 # Test comprehensive configs
+                # aspect_ratio is not supported for mask editing
                 'negative_prompt': 'human',
                 'guidance_scale': 15.0,
                 'safety_filter_level': 'BLOCK_MEDIUM_AND_ABOVE',
@@ -106,10 +108,12 @@ test_table: list[pytest_helper.TestTableItem] = [
                 'include_rai_reason': True,
                 'output_mime_type': 'image/jpeg',
                 'output_compression_quality': 80,
+                'base_steps': 32,
+                'add_watermark': False,
             },
         ),
     ),
-        pytest_helper.TestTableItem(
+    pytest_helper.TestTableItem(
         name='test_edit_mask_inpaint_insert_user_provided',
         exception_if_mldev='only supported in the Vertex AI client',
         parameters=types._EditImageParameters(
@@ -118,6 +122,7 @@ test_table: list[pytest_helper.TestTableItem] = [
             reference_images=[raw_ref_image, mask_ref_image_user_provided],
             config={
                 'edit_mode': 'EDIT_MODE_INPAINT_INSERTION',
+                # aspect_ratio is not supported for mask editing
                 'number_of_images': 1,
                 'include_rai_reason': True,
             },
@@ -132,6 +137,7 @@ test_table: list[pytest_helper.TestTableItem] = [
             reference_images=[raw_ref_image, control_ref_image],
             config={
                 'number_of_images': 1,
+                'aspect_ratio': '9:16',
                 'include_rai_reason': True,
             },
         ),
@@ -141,10 +147,14 @@ test_table: list[pytest_helper.TestTableItem] = [
         exception_if_mldev='only supported in the Vertex AI client',
         parameters=types._EditImageParameters(
             model=MODEL_NAME,
-            prompt='Generate an image in glowing style [1] based on the following caption: A church in the mountain.',
+            prompt=(
+                'Generate an image in glowing style [1] based on the following'
+                ' caption: A church in the mountain.'
+            ),
             reference_images=[style_ref_image_customization],
             config={
                 'number_of_images': 1,
+                'aspect_ratio': '9:16',
                 'include_rai_reason': True,
             },
         ),
@@ -154,10 +164,14 @@ test_table: list[pytest_helper.TestTableItem] = [
         exception_if_mldev='only supported in the Vertex AI client',
         parameters=types._EditImageParameters(
             model=MODEL_NAME,
-            prompt='Generate an image containing a mug with the product logo [1] visible on the side of the mug.',
+            prompt=(
+                'Generate an image containing a mug with the product logo [1]'
+                ' visible on the side of the mug.'
+            ),
             reference_images=[subject_ref_image_customization],
             config={
                 'number_of_images': 1,
+                'aspect_ratio': '9:16',
                 'include_rai_reason': True,
             },
         ),
@@ -170,6 +184,21 @@ pytestmark = pytest_helper.setup(
     test_method='models.edit_image',
     test_table=test_table,
 )
+
+
+def test_setting_reference_type_raises(client):
+  with pytest.raises(pydantic.ValidationError):
+    types._ReferenceImageAPI(
+        reference_id=1,
+        reference_type='REFERENCE_TYPE_SUBJECT',  # user can't set reference_type
+        reference_image=types.Image.from_file(location=IMAGE_FILE_PATH),
+        config=types.SubjectReferenceConfig(
+            subject_type='SUBJECT_TYPE_PRODUCT',
+            subject_description=(
+                'A product logo that is a multi-colored letter G'
+            ),
+        ),
+    )
 
 
 @pytest.mark.asyncio
@@ -191,6 +220,7 @@ async def test_edit_mask_inpaint_insert_async(client):
             'include_rai_reason': True,
             'output_mime_type': 'image/jpeg',
             'output_compression_quality': 80,
+            'add_watermark': False,
         },
     )
     assert response.generated_images[0].image.image_bytes

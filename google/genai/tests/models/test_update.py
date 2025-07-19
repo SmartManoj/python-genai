@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,14 +19,15 @@ from ... import errors
 from ... import types
 from .. import pytest_helper
 
+test_http_options = {'headers': {'test': 'headers'}}
 
 test_table: list[pytest_helper.TestTableItem] = [
     pytest_helper.TestTableItem(
         name='test_mldev_tuned_models_update',
         parameters=types._UpdateModelParameters(
-            model='tunedModels/generate-num-8498',
+            model='tunedModels/generatenum5443-ekrw7ie9wis23zbeogbw6jq8',
             config={
-                'display_name': 'My tuned gemini-1.0',
+                'display_name': 'My tuned gemini-1.5',
             },
         ),
         exception_if_vertex='404',
@@ -34,11 +35,37 @@ test_table: list[pytest_helper.TestTableItem] = [
     pytest_helper.TestTableItem(
         name='test_vertex_tuned_models_update',
         parameters=types._UpdateModelParameters(
-            model='models/7687416965014487040',
+            model='models/2171259487439028224',
             config={
                 'description': (
-                    'My SupervisedTuningJob 2024-05-16 13:36:47.332273'
+                    'My SupervisedTuningJob'
                 ),
+                'default_checkpoint_id': '8',
+            },
+        ),
+        exception_if_mldev='404',
+    ),
+    pytest_helper.TestTableItem(
+        name='test_mldev_tuned_models_update_with_http_options_in_method',
+        parameters=types._UpdateModelParameters(
+            model='tunedModels/generatenum5443-ekrw7ie9wis23zbeogbw6jq8',
+            config={
+                'display_name': 'My tuned gemini-1.0',
+                'http_options': test_http_options,
+            },
+        ),
+        exception_if_vertex='404',
+    ),
+    pytest_helper.TestTableItem(
+        name='test_vertex_tuned_models_update_with_http_options_in_method',
+        parameters=types._UpdateModelParameters(
+            model='models/2171259487439028224',
+            config={
+                'description': (
+                    'My SupervisedTuningJob'
+                ),
+                'default_checkpoint_id': '8',
+                'http_options': test_http_options,
             },
         ),
         exception_if_mldev='404',
@@ -58,14 +85,20 @@ async def test_async_update_tuned_model(client):
   if client._api_client.vertexai:
     with pytest.raises(errors.ClientError) as e:
       await client.aio.models.update(
-          model='tunedModels/generate-num-8498',
-          config={'description': 'My tuned gemini-1.0'},
+          model='tunedModels/generatenum5443-ekrw7ie9wis23zbeogbw6jq8',
+          config={
+              'description': 'My tuned gemini-1.0',
+              'http_options': test_http_options,
+          },
       )
-      assert '404' in str(e)
+    assert '404' in str(e)
   else:
     response = await client.aio.models.update(
-        model='tunedModels/generate-num-8498',
-        config={'description': 'My tuned gemini-1.0'},
+        model='tunedModels/generatenum5443-ekrw7ie9wis23zbeogbw6jq8',
+        config={
+            'description': 'My tuned gemini-1.5',
+            'http_options': test_http_options,
+        },
     )
 
 
@@ -73,17 +106,19 @@ async def test_async_update_tuned_model(client):
 async def test_async_update_model(client):
   if client._api_client.vertexai:
     response = await client.aio.models.update(
-        model='models/7687416965014487040',
+        model='models/2171259487439028224',
         config={
-            'display_name': 'My tuned gemini-1.0',
+            'display_name': 'My tuned gemini-1.5',
+            'http_options': test_http_options,
         },
     )
   else:
     with pytest.raises(errors.ClientError) as e:
       await client.aio.models.update(
-          model='models/7687416965014487040',
+          model='models/2171259487439028224',
           config={
-              'display_name': 'My tuned gemini-1.0',
+              'display_name': 'My tuned gemini-1.5',
+              'http_options': test_http_options,
           },
       )
-      assert '404' in str(e)
+    assert '404' in str(e)

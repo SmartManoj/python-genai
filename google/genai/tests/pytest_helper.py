@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,14 +18,13 @@ import contextlib
 import json
 import os
 import pathlib
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel, Field, SerializeAsAny
 import pytest
 from .. import _common
 from .. import _replay_api_client
 from .. import types
 from .._api_client import HttpOptions
-from .._replay_api_client import ResponseJsonEncoder
 
 is_api_mode = "config.getoption('--mode') == 'api'"
 
@@ -86,7 +85,7 @@ def create_test_for_table_item(
 
 
 def create_test_for_table(
-    globals_for_file: dict[str, any],
+    globals_for_file: dict[str, Any],
     test_method: str,
     test_table: list[TestTableItem],
 ):
@@ -116,7 +115,7 @@ def create_test_for_table(
 def setup(
     *,
     file: str,
-    globals_for_file: Optional[dict[str, any]] = None,
+    globals_for_file: Optional[dict[str, Any]] = None,
     test_method: Optional[str] = None,
     test_table: Optional[list[TestTableItem]] = None,
     http_options: Optional[HttpOptions] = None,
@@ -164,13 +163,7 @@ def setup(
 
     with open(test_table_file_path, 'w') as f:
       f.write(
-          # exclude_unset=True is needed to avoid warnings.
-          # See https://github.com/pydantic/pydantic/issues/6467.
-          json.dumps(
-              test_table_file.model_dump(exclude_unset=True, by_alias=True),
-              indent=2,
-              cls=ResponseJsonEncoder,
-          )
+          test_table_file.model_dump_json(exclude_none=True, by_alias=True, indent=2),
       )
 
   # Add fixture for requested client option.

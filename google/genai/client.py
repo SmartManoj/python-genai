@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,12 +14,13 @@
 #
 
 import os
-from typing import Optional
+from typing import Optional, Union
 
 import google.auth
 import pydantic
 
-from ._api_client import ApiClient, HttpOptions
+from ._api_client import BaseApiClient
+from ._base_url import get_base_url
 from ._replay_api_client import ReplayApiClient
 from .batches import AsyncBatches, Batches
 from .caches import AsyncCaches, Caches
@@ -27,13 +28,16 @@ from .chats import AsyncChats, Chats
 from .files import AsyncFiles, Files
 from .live import AsyncLive
 from .models import AsyncModels, Models
+from .operations import AsyncOperations, Operations
+from .tokens import AsyncTokens, Tokens
 from .tunings import AsyncTunings, Tunings
+from .types import HttpOptions, HttpOptionsDict, HttpRetryOptions
 
 
 class AsyncClient:
   """Client for making asynchronous (non-blocking) requests."""
 
-  def __init__(self, api_client: ApiClient):
+  def __init__(self, api_client: BaseApiClient):
 
     self._api_client = api_client
     self._models = AsyncModels(self._api_client)
@@ -42,6 +46,8 @@ class AsyncClient:
     self._batches = AsyncBatches(self._api_client)
     self._files = AsyncFiles(self._api_client)
     self._live = AsyncLive(self._api_client)
+    self._tokens = AsyncTokens(self._api_client)
+    self._operations = AsyncOperations(self._api_client)
 
   @property
   def models(self) -> AsyncModels:
@@ -71,6 +77,14 @@ class AsyncClient:
   def live(self) -> AsyncLive:
     return self._live
 
+  @property
+  def auth_tokens(self) -> AsyncTokens:
+    return self._tokens
+
+  @property
+  def operations(self) -> AsyncOperations:
+    return self._operations
+
 
 class DebugConfig(pydantic.BaseModel):
   """Configuration options that change client network behavior when testing."""
@@ -94,28 +108,43 @@ class Client:
   Use this client to make a request to the Gemini Developer API or Vertex AI
   API and then wait for the response.
 
+  To initialize the client, provide the required arguments either directly
+  or by using environment variables. Gemini API users and Vertex AI users in
+  express mode can provide API key by providing input argument
+  `api_key="your-api-key"` or by defining `GOOGLE_API_KEY="your-api-key"` as an
+  environment variable
+
+  Vertex AI API users can provide inputs argument as `vertexai=True,
+  project="your-project-id", location="us-central1"` or by defining
+  `GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_PROJECT` and
+  `GOOGLE_CLOUD_LOCATION` environment variables.
+
   Attributes:
     api_key: The `API key <https://ai.google.dev/gemini-api/docs/api-key>`_ to
       use for authentication. Applies to the Gemini Developer API only.
-    vertexai: Indicates whether the client should use the Vertex AI
-      API endpoints. Defaults to False (uses Gemini Developer API endpoints).
+    vertexai: Indicates whether the client should use the Vertex AI API
+      endpoints. Defaults to False (uses Gemini Developer API endpoints).
       Applies to the Vertex AI API only.
     credentials: The credentials to use for authentication when calling the
       Vertex AI APIs. Credentials can be obtained from environment variables and
-      default credentials. For more information, see
-      `Set up Application Default Credentials
+      default credentials. For more information, see `Set up Application Default
+      Credentials
       <https://cloud.google.com/docs/authentication/provide-credentials-adc>`_.
       Applies to the Vertex AI API only.
-    project: The `Google Cloud project ID <https://cloud.google.com/vertex-ai/docs/start/cloud-environment>`_ to
-      use for quota. Can be obtained from environment variables (for example,
+    project: The `Google Cloud project ID
+      <https://cloud.google.com/vertex-ai/docs/start/cloud-environment>`_ to use
+      for quota. Can be obtained from environment variables (for example,
       ``GOOGLE_CLOUD_PROJECT``). Applies to the Vertex AI API only.
-    location: The `location <https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations>`_
+      Find your `Google Cloud project ID <https://cloud.google.com/resource-manager/docs/creating-managing-projects#identifying_projects>`_.
+    location: The `location
+      <https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations>`_
       to send API requests to (for example, ``us-central1``). Can be obtained
       from environment variables. Applies to the Vertex AI API only.
     debug_config: Config settings that control network behavior of the client.
       This is typically used when running test code.
-    http_options: Http options to use for the client. Response_payload can't be
-      set when passing to the client constructor.
+    http_options: Http options to use for the client. These options will be
+      applied to all requests made by the client. Example usage: `client =
+      genai.Client(http_options=types.HttpOptions(api_version='v1'))`.
 
   Usage for the Gemini Developer API:
 
@@ -145,50 +174,47 @@ class Client:
       project: Optional[str] = None,
       location: Optional[str] = None,
       debug_config: Optional[DebugConfig] = None,
-      http_options: Optional[HttpOptions] = None,
+      http_options: Optional[Union[HttpOptions, HttpOptionsDict]] = None,
   ):
     """Initializes the client.
 
-       Args:
-          vertexai (bool):
-              Indicates whether the client should use the Vertex AI
-              API endpoints. Defaults to False (uses Gemini Developer API
-              endpoints). Applies to the Vertex AI API only.
-          api_key (str):
-              The `API key
-              <https://ai.google.dev/gemini-api/docs/api-key>`_ to use for
-              authentication. Applies to the Gemini Developer API only.
-          credentials (google.auth.credentials.Credentials):
-              The credentials to
-              use for authentication when calling the Vertex AI APIs. Credentials
-              can be obtained from environment variables and default credentials.
-              For more information, see `Set up Application Default Credentials
-              <https://cloud.google.com/docs/authentication/provide-credentials-adc>`_.
-              Applies to the Vertex AI API only.
-          project (str):
-              The `Google Cloud project ID
-              <https://cloud.google.com/vertex-ai/docs/start/cloud-environment>`_ to
-              use for quota. Can be obtained from environment variables (for
-              example, ``GOOGLE_CLOUD_PROJECT``). Applies to the Vertex AI API only.
-          location (str):
-              The `location
-              <https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations>`_
-              to send API requests to (for example, ``us-central1``). Can be
-              obtained from environment variables. Applies to the Vertex AI API
-              only.
-          debug_config (DebugConfig):
-              Config settings that control network
-              behavior of the client. This is typically used when running test code.
+    Args:
+       vertexai (bool): Indicates whether the client should use the Vertex AI
+         API endpoints. Defaults to False (uses Gemini Developer API endpoints).
+         Applies to the Vertex AI API only.
+       api_key (str): The `API key
+         <https://ai.google.dev/gemini-api/docs/api-key>`_ to use for
+         authentication. Applies to the Gemini Developer API only.
+       credentials (google.auth.credentials.Credentials): The credentials to use
+         for authentication when calling the Vertex AI APIs. Credentials can be
+         obtained from environment variables and default credentials. For more
+         information, see `Set up Application Default Credentials
+         <https://cloud.google.com/docs/authentication/provide-credentials-adc>`_.
+         Applies to the Vertex AI API only.
+       project (str): The `Google Cloud project ID
+         <https://cloud.google.com/vertex-ai/docs/start/cloud-environment>`_ to
+         use for quota. Can be obtained from environment variables (for example,
+         ``GOOGLE_CLOUD_PROJECT``). Applies to the Vertex AI API only.
+       location (str): The `location
+         <https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations>`_
+         to send API requests to (for example, ``us-central1``). Can be obtained
+         from environment variables. Applies to the Vertex AI API only.
+       debug_config (DebugConfig): Config settings that control network behavior
+         of the client. This is typically used when running test code.
+       http_options (Union[HttpOptions, HttpOptionsDict]): Http options to use
+         for the client.
     """
 
     self._debug_config = debug_config or DebugConfig()
+    if isinstance(http_options, dict):
+      http_options = HttpOptions(**http_options)
 
-    # Throw ValueError if response_payload is set in http_options due to
-    # unpredical behavior when running multiple coroutines through client.aio.
-    if http_options and 'response_payload' in http_options:
-      raise ValueError(
-          'Setting response_payload in http_options is not supported.'
-      )
+    base_url = get_base_url(vertexai or False, http_options)
+    if base_url:
+      if http_options:
+        http_options.base_url = base_url
+      else:
+        http_options = HttpOptions(base_url=base_url)
 
     self._api_client = self._get_api_client(
         vertexai=vertexai,
@@ -206,6 +232,8 @@ class Client:
     self._caches = Caches(self._api_client)
     self._batches = Batches(self._api_client)
     self._files = Files(self._api_client)
+    self._tokens = Tokens(self._api_client)
+    self._operations = Operations(self._api_client)
 
   @staticmethod
   def _get_api_client(
@@ -216,17 +244,17 @@ class Client:
       location: Optional[str] = None,
       debug_config: Optional[DebugConfig] = None,
       http_options: Optional[HttpOptions] = None,
-  ):
+  ) -> BaseApiClient:
     if debug_config and debug_config.client_mode in [
         'record',
         'replay',
         'auto',
     ]:
       return ReplayApiClient(
-          mode=debug_config.client_mode,
-          replay_id=debug_config.replay_id,
+          mode=debug_config.client_mode,  # type: ignore[arg-type]
+          replay_id=debug_config.replay_id,  # type: ignore[arg-type]
           replays_directory=debug_config.replays_directory,
-          vertexai=vertexai,
+          vertexai=vertexai,  # type: ignore[arg-type]
           api_key=api_key,
           credentials=credentials,
           project=project,
@@ -234,7 +262,7 @@ class Client:
           http_options=http_options,
       )
 
-    return ApiClient(
+    return BaseApiClient(
         vertexai=vertexai,
         api_key=api_key,
         credentials=credentials,
@@ -270,6 +298,14 @@ class Client:
   @property
   def files(self) -> Files:
     return self._files
+
+  @property
+  def auth_tokens(self) -> Tokens:
+    return self._tokens
+
+  @property
+  def operations(self) -> Operations:
+    return self._operations
 
   @property
   def vertexai(self) -> bool:

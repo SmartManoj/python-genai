@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,19 +16,22 @@
 
 import copy
 import pytest
+from ... import _transformers as t
+from ... import errors
 from ... import types
 from .. import pytest_helper
 from . import constants
 
 _COUNT_TOKENS_PARAMS = types._CountTokensParameters(
-    model='gemini-1.5-flash', contents='Tell me a story in 300 words.'
+    model='gemini-1.5-flash',
+    contents=[t.t_content('Tell me a story in 300 words.')],
 )
 
 _COUNT_TOKENS_PARAMS_WITH_SYSTEM_INSTRUCTION = copy.deepcopy(
     _COUNT_TOKENS_PARAMS
 )
 _COUNT_TOKENS_PARAMS_WITH_SYSTEM_INSTRUCTION.config = {
-    'system_instruction': 'you are a chatbot.'
+    'system_instruction': t.t_content('you are a chatbot.')
 }
 
 _COUNT_TOKENS_PARAMS_WITH_TOOLS = copy.deepcopy(_COUNT_TOKENS_PARAMS)
@@ -52,6 +55,7 @@ _COUNT_TOKENS_PARAMS_MLDEV_CUSTOM_URL.config = {
     'http_options': constants.MLDEV_HTTP_OPTIONS
 }
 
+
 # TODO(b/378952792): MLDev count_tokens needs to merge contents and model
 # param into generateContentRequest field.
 test_table: list[pytest_helper.TestTableItem] = [
@@ -71,12 +75,12 @@ test_table: list[pytest_helper.TestTableItem] = [
     ),
     pytest_helper.TestTableItem(
         name='test_count_tokens_with_system_instruction',
-        exception_if_mldev='INVALID_ARGUMENT',
+        exception_if_mldev='not supported',
         parameters=_COUNT_TOKENS_PARAMS_WITH_SYSTEM_INSTRUCTION,
     ),
     pytest_helper.TestTableItem(
         name='test_count_tokens_with_tools',
-        exception_if_mldev='INVALID_ARGUMENT',
+        exception_if_mldev='not supported',
         parameters=_COUNT_TOKENS_PARAMS_WITH_TOOLS,
     ),
     pytest_helper.TestTableItem(
@@ -126,3 +130,30 @@ def test_different_model_names(client):
         model='models/gemini-1.5-flash', contents=_COUNT_TOKENS_PARAMS.contents
     )
     assert response2
+
+
+def test_extra_body(client):
+  config = {
+      'http_options': {
+          'extra_body': {
+              'systemInstruction': {
+                  'parts': [{'text': 'you are a chatbot.'}],
+                  'role': 'user',
+              }
+          }
+      }
+  }
+  if client._api_client.vertexai:
+    response = client.models.count_tokens(
+        model=_COUNT_TOKENS_PARAMS.model,
+        contents=_COUNT_TOKENS_PARAMS.contents,
+        config=config,
+    )
+    assert response.total_tokens
+  else:
+    with pytest.raises(errors.ClientError):
+      client.models.count_tokens(
+          model=_COUNT_TOKENS_PARAMS.model,
+          contents=_COUNT_TOKENS_PARAMS.contents,
+          config=config,
+      )

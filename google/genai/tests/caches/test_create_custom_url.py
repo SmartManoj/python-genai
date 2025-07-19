@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,31 +19,32 @@ import pytest
 from ... import types
 from .. import pytest_helper
 from . import constants
+from ... import _transformers as t
 
 _CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI = types._CreateCachedContentParameters(
     model='gemini-1.5-pro-002',
-    contents=[
-        types.Content(
-            role='user',
-            parts=[
-                types.Part(
-                    fileData=types.FileData(
-                        fileUri='gs://cloud-samples-data/generative-ai/pdf/2312.11805v3.pdf',
-                        mimeType='application/pdf',
-                    )
-                ),
-                types.Part(
-                    fileData=types.FileData(
-                        fileUri='gs://cloud-samples-data/generative-ai/pdf/2403.05530.pdf',
-                        mimeType='application/pdf',
-                    )
-                ),
-            ],
-        )
-    ],
     config={
+        'contents': [
+            types.Content(
+                role='user',
+                parts=[
+                    types.Part(
+                        fileData=types.FileData(
+                            fileUri='gs://cloud-samples-data/generative-ai/pdf/2312.11805v3.pdf',
+                            mimeType='application/pdf',
+                        )
+                    ),
+                    types.Part(
+                        fileData=types.FileData(
+                            fileUri='gs://cloud-samples-data/generative-ai/pdf/2403.05530.pdf',
+                            mimeType='application/pdf',
+                        )
+                    ),
+                ],
+            )
+        ],
+        'system_instruction': t.t_content('What is the sum of the two pdfs?'),
         'display_name': 'test cache',
-        'system_instruction': 'What is the sum of the two pdfs?',
         'ttl': '86400s',
         'http_options': constants.VERTEX_HTTP_OPTIONS,
     },
@@ -51,22 +52,22 @@ _CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI = types._CreateCachedContentParameters
 
 _CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE = types._CreateCachedContentParameters(
     model='gemini-1.5-pro-001',
-    contents=[
-        types.Content(
-            role='user',
-            parts=[
-                types.Part(
-                    fileData=types.FileData(
-                        mimeType='video/mp4',
-                        fileUri='https://generativelanguage.googleapis.com/v1beta/files/tjvltve756aa',
-                    )
-                )
-            ],
-        )
-    ],
     config={
+        'contents': [
+            types.Content(
+                role='user',
+                parts=[
+                    types.Part(
+                        fileData=types.FileData(
+                            mimeType='video/mp4',
+                            fileUri='https://generativelanguage.googleapis.com/v1beta/files/v200dhvn15h7',
+                        )
+                    )
+                ],
+            )
+        ],
+        'system_instruction': t.t_content('What is the sum of the two pdfs?'),
         'display_name': 'test cache',
-        'system_instruction': 'What is the sum of the two pdfs?',
         'ttl': '86400s',
         'http_options': constants.MLDEV_HTTP_OPTIONS,
     },

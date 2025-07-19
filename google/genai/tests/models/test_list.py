@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,20 +16,39 @@
 
 """Tests for models.list."""
 
+from unittest import mock
+
 import pytest
 
+from ... import client as genai_client
+from ... import _api_client
 from ... import types
 from .. import pytest_helper
 
+test_http_options = {'headers': {'test': 'headers'}}
 
 test_table: list[pytest_helper.TestTableItem] = [
     pytest_helper.TestTableItem(
-        name='test_list_models',
+        name='test_tuned_models',
+        parameters=types._ListModelsParameters(config={'query_base': False}),
+    ),
+    pytest_helper.TestTableItem(
+        name='test_base_models',
         parameters=types._ListModelsParameters(),
     ),
     pytest_helper.TestTableItem(
-        name='test_list_models_with_config',
+        name='test_base_models_with_config',
+        parameters=types._ListModelsParameters(config={'query_base': True, 'page_size': 10}),
+    ),
+    pytest_helper.TestTableItem(
+        name='test_with_config',
         parameters=types._ListModelsParameters(config={'page_size': 3}),
+    ),
+    pytest_helper.TestTableItem(
+        name='test_list_models_with_http_options_in_method',
+        parameters=types._ListModelsParameters(
+            config={'page_size': 3, 'http_options': test_http_options}
+        ),
     ),
 ]
 pytestmark = pytest_helper.setup(
@@ -40,30 +59,161 @@ pytestmark = pytest_helper.setup(
 )
 
 
-def test_pager(client):
-  models = client.models.list(config={'page_size': 10})
+@pytest.fixture()
+def mock_api_client():
+  api_client = mock.MagicMock(spec=genai_client.BaseApiClient)
+  api_client.api_key = 'fake_api_key'
+  api_client._host = lambda: 'fake_host'
+  api_client._http_options = {'headers': {}}
+  api_client.vertexai = False
+  return api_client
 
-  assert models.name == 'models'
-  assert models.page_size == 10
-  assert len(models) <= 10
+
+def test_tuned_models_pager(client):
+  pager = client.models.list(config={'page_size': 10})
+
+  assert pager.name == 'models'
+  assert pager.page_size == 10
+  assert len(pager) <= 10
 
   # Iterate through all the pages. Then next_page() should raise an exception.
-  for _ in models:
+  for _ in pager:
     pass
   with pytest.raises(IndexError, match='No more pages to fetch.'):
-    models.next_page()
+    pager.next_page()
+
+
+def test_base_models_pager(client):
+  pager = client.models.list(config={'page_size': 10, 'query_base': True})
+
+  assert pager.name == 'models'
+  assert pager.page_size == 10
+  assert len(pager) <= 10
+
+  # Iterate through all the pages. Then next_page() should raise an exception.
+  for _ in pager:
+    pass
+  with pytest.raises(IndexError, match='No more pages to fetch.'):
+    pager.next_page()
+
+
+def test_base_response_with_empty_json_payload_and_http_headers(
+    mock_api_client, client
+):
+  with mock.patch.object(
+      genai_client.Client, '_get_api_client'
+  ) as patch_api_client:
+    patch_api_client.return_value = mock_api_client
+    mock_client = genai_client.Client()
+    sdk_http_response = types.HttpResponse(
+        headers={'header_key': 'header_value'},
+        body='{}',
+    )
+    with mock.patch.object(
+        mock_api_client, 'request', return_value=sdk_http_response
+    ):
+      pager = mock_client.models.list()
+
+      assert len(pager) == 0
+
+
+def test_unknown_json_payload(mock_api_client, client):
+  with mock.patch.object( 
+      genai_client.Client, '_get_api_client'
+  ) as patch_api_client:
+    patch_api_client.return_value = mock_api_client
+    mock_client = genai_client.Client()
+    sdk_http_response = types.HttpResponse(
+        headers={'header_key': 'header_value'},
+        body='{"unknown_key": "unknown_value"}',
+    )
+    with mock.patch.object(
+        mock_api_client, 'request', return_value=sdk_http_response
+    ) :
+      pager = mock_client.models.list()
+
+      assert len(pager) == 0
+
+
+def test_empty_json_payload(mock_api_client, client):
+  with mock.patch.object( 
+      genai_client.Client, '_get_api_client'
+  ) as patch_api_client:
+    patch_api_client.return_value = mock_api_client
+    mock_client = genai_client.Client()
+    sdk_http_response = types.HttpResponse(
+        headers={'header_key': 'header_value'},
+        body='',
+    )
+    with mock.patch.object(
+        mock_api_client, 'request', return_value=sdk_http_response
+    ) :
+      pager = mock_client.models.list()
+
+      assert len(pager) == 0
+
+
+def test_empty_api_response_none_headers(mock_api_client, client):
+  with mock.patch.object(
+      genai_client.Client, '_get_api_client'
+  ) as patch_api_client:
+    patch_api_client.return_value = mock_api_client
+    mock_client = genai_client.Client()
+    sdk_http_response = types.HttpResponse(
+        headers=None,
+        body='{}',
+    )
+    with mock.patch.object(
+        mock_api_client, 'request', return_value=sdk_http_response
+    ):
+      pager = mock_client.models.list()
+
+      assert len(pager) == 0
+
+
+def test_empty_api_response_empty_dict_headers(mock_api_client, client):
+  with mock.patch.object(
+      genai_client.Client, '_get_api_client'
+  ) as patch_api_client:
+    patch_api_client.return_value = mock_api_client
+    mock_client = genai_client.Client()
+    sdk_http_response = types.HttpResponse(
+        headers={},
+        body='{}',
+    )
+    with mock.patch.object(
+        mock_api_client, 'request', return_value=sdk_http_response
+    ):
+      pager = mock_client.models.list()
+
+      assert len(pager) == 0
 
 
 @pytest.mark.asyncio
-async def test_async_pager(client):
-  models = await client.aio.models.list(config={'page_size': 10})
+async def test_tuned_models_async_pager(client):
+  pager = await client.aio.models.list(config={'page_size': 10, 'query_base': False})
 
-  assert models.name == 'models'
-  assert models.page_size == 10
-  assert len(models) <= 10
+  assert pager.name == 'models'
+  assert pager.page_size == 10
+  assert len(pager) <= 10
 
   # Iterate through all the pages. Then next_page() should raise an exception.
-  async for _ in models:
+  async for _ in pager:
     pass
   with pytest.raises(IndexError, match='No more pages to fetch.'):
-    await models.next_page()
+    await pager.next_page()
+
+
+@pytest.mark.asyncio
+async def test_base_models_async_pager(client):
+  pager = await client.aio.models.list(config={'page_size': 10})
+
+  assert pager.name == 'models'
+  assert pager.page_size == 10
+  assert len(pager) <= 10
+
+  # Iterate through all the pages. Then next_page() should raise an exception.
+  async for _ in pager:
+    pass
+  with pytest.raises(IndexError, match='No more pages to fetch.'):
+    await pager.next_page()

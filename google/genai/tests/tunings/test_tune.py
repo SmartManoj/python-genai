@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ test_table: list[pytest_helper.TestTableItem] = [
                 gcs_uri="gs://cloud-samples-data/ai-platform/generative_ai/gemini-1_5/text/sft_train_data.jsonl",
             ),
         ),
-        exception_if_mldev="gcs_uri parameter is not supported in Google AI.",
+        exception_if_mldev="gcs_uri parameter is not supported in Gemini API.",
     ),
     pytest_helper.TestTableItem(
         name="test_dataset_gcs_uri_all_parameters",
@@ -51,7 +51,7 @@ test_table: list[pytest_helper.TestTableItem] = [
                 # learning_rate=0.01,
             ),
         ),
-        exception_if_mldev="gcs_uri parameter is not supported in Google AI.",
+        exception_if_mldev="gcs_uri parameter is not supported in Gemini API.",
     ),
     pytest_helper.TestTableItem(
         name="test_dataset_gcs_uri_parameters_unsupported_by_vertex",
@@ -67,7 +67,7 @@ test_table: list[pytest_helper.TestTableItem] = [
             ),
         ),
         exception_if_vertex="batch_size parameter is not supported in Vertex AI.",
-        exception_if_mldev="gcs_uri parameter is not supported in Google AI.",
+        exception_if_mldev="gcs_uri parameter is not supported in Gemini API.",
     ),
     pytest_helper.TestTableItem(
         name="test_dataset_examples",
@@ -153,46 +153,41 @@ test_table: list[pytest_helper.TestTableItem] = [
                 # ),
             ),
         ),
-        exception_if_mldev="adapter_size parameter is not supported in Google AI.",
+        exception_if_mldev="adapter_size parameter is not supported in Gemini API.",
         exception_if_vertex="examples parameter is not supported in Vertex AI.",
     ),
-    # # Only supported in Google AI API v1alpha
-    # TestTableItem(
-    #     name="test_dataset_multiturn_examples",
-    #     parameters=genai_types.CreateSftTuningJobRequest(
-    #         base_model="gemini-1.5-pro-002",
-    #         training_dataset=genai_types.TuningTrainingDataset(
-    #             multiturn_examples=[
-    #                 genai_types.TuningMultiturnExample(
-    #                     system_instruction=genai_types.Content(
-    #                         parts=[
-    #                             genai_types.Part(
-    #                                 text="System instruction",
-    #                             )
-    #                         ]
-    #                     ),
-    #                     contents=[
-    #                         genai_types.Content(
-    #                             role="role",
-    #                             parts=[
-    #                                 genai_types.Part(
-    #                                     text="Text 1",
-    #                                 )
-    #                             ],
-    #                         )
-    #                     ],
-    #                 )
-    #             ],
-    #         ),
-    #         # Required for MLDev:
-    #         # "Either tuned_model_id or display_name must be set."
-    #         config=genai_types.CreateTuningJobConfig(
-    #             tuned_model_display_name="test_dataset_examples model",
-    #         ),
-    #     ),
-    #     # exception_if_mldev="Bad Request",  # v1alpha only
-    #     exception_if_vertex="multiturn_examples parameter is not supported.",
-    # ),
+    pytest_helper.TestTableItem(
+        name="test_dataset_vertex_dataset_resource",
+        parameters=genai_types._CreateTuningJobParameters(
+            base_model="gemini-1.5-pro-002",
+            training_dataset=genai_types.TuningDataset(
+                vertex_dataset_resource="projects/613165508263/locations/us-central1/datasets/8254568702121345024",
+            ),
+        ),
+        exception_if_mldev="vertex_dataset_resource parameter is not supported in Gemini API.",
+    ),
+    pytest_helper.TestTableItem(
+        name="test_dataset_dataset_resource_all_parameters",
+        parameters=genai_types._CreateTuningJobParameters(
+            base_model="gemini-1.5-pro-002",
+            training_dataset=genai_types.TuningDataset(
+                vertex_dataset_resource="projects/613165508263/locations/us-central1/datasets/8254568702121345024",
+            ),
+            config=genai_types.CreateTuningJobConfig(
+                tuned_model_display_name="Model display name",
+                epoch_count=1,
+                learning_rate_multiplier=1.0,
+                adapter_size="ADAPTER_SIZE_ONE",
+                validation_dataset=genai_types.TuningDataset(
+                    vertex_dataset_resource="projects/613165508263/locations/us-central1/datasets/5556912525326417920",
+                ),
+                # Not supported in Vertex AI
+                # batch_size=4,
+                # learning_rate=0.01,
+            ),
+        ),
+        exception_if_mldev="vertex_dataset_resource parameter is not supported in Gemini API.",
+    ),
 ]
 
 pytestmark = pytest_helper.setup(

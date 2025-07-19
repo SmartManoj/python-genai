@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,56 +17,58 @@
 from copy import deepcopy
 import datetime
 import pytest
+import sys
 from ... import types
 from .. import pytest_helper
+from ... import _transformers as t
 
 
 _CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI = types._CreateCachedContentParameters(
     model='gemini-1.5-pro-002',
-    contents=[
-        types.Content(
-            role='user',
-            parts=[
-                types.Part(
-                    fileData=types.FileData(
-                        fileUri='gs://cloud-samples-data/generative-ai/pdf/2312.11805v3.pdf',
-                        mimeType='application/pdf',
-                    )
-                ),
-                types.Part(
-                    fileData=types.FileData(
-                        fileUri='gs://cloud-samples-data/generative-ai/pdf/2403.05530.pdf',
-                        mimeType='application/pdf',
-                    )
-                ),
-            ],
-        )
-    ],
     config={
+        'contents': [
+            types.Content(
+                role='user',
+                parts=[
+                    types.Part(
+                        fileData=types.FileData(
+                            fileUri='gs://cloud-samples-data/generative-ai/pdf/2312.11805v3.pdf',
+                            mimeType='application/pdf',
+                        )
+                    ),
+                    types.Part(
+                        fileData=types.FileData(
+                            fileUri='gs://cloud-samples-data/generative-ai/pdf/2403.05530.pdf',
+                            mimeType='application/pdf',
+                        )
+                    ),
+                ],
+            )
+        ],
+        'system_instruction': t.t_content('What is the sum of the two pdfs?'),
         'display_name': 'test cache',
-        'system_instruction': 'What is the sum of the two pdfs?',
         'ttl': '86400s',
     },
 )
 
 _CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE = types._CreateCachedContentParameters(
     model='gemini-1.5-pro-001',
-    contents=[
-        types.Content(
-            role='user',
-            parts=[
-                types.Part(
-                    fileData=types.FileData(
-                        mimeType='video/mp4',
-                        fileUri='https://generativelanguage.googleapis.com/v1beta/files/tjvltve756aa',
-                    )
-                )
-            ],
-        )
-    ],
     config={
+        'contents': [
+            types.Content(
+                role='user',
+                parts=[
+                    types.Part(
+                        fileData=types.FileData(
+                            mimeType='video/mp4',
+                            fileUri='https://generativelanguage.googleapis.com/v1beta/files/v200dhvn15h7',
+                        )
+                    )
+                ],
+            )
+        ],
+        'system_instruction': t.t_content('What is the sum of the two pdfs?'),
         'display_name': 'test cache',
-        'system_instruction': 'What is the sum of the two pdfs?',
         'ttl': '86400s',
     },
 )
@@ -91,25 +93,39 @@ _CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE_PARTIAL_MODEL_1.model = (
     'models/gemini-1.5-pro-001'
 )
 
+_CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI_CMEK = deepcopy(
+    _CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI
+)
+_CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI_CMEK.config.kms_key_name = (
+    'projects/test-project/locations/us-central1/keyRings/test-keyring/cryptoKeys/test-key'
+)
 
-_EXPIRE_TIME = datetime.datetime.fromisoformat('2024-12-20T00:00:00Z')
+if sys.version_info >= (3, 11):
+  _EXPIRE_TIME = datetime.datetime.fromisoformat('2024-12-20T00:00:00Z')
+else:
+  _EXPIRE_TIME = datetime.datetime.fromisoformat('2024-12-20T00:00:00+00:00')
+
 _CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI_EXPIRE_TIME = deepcopy(
     _CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI
 )
-_CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI_EXPIRE_TIME.config = {
-    'display_name': 'test cache',
-    'system_instruction': 'What is the sum of the two pdfs?',
-    'expire_time': _EXPIRE_TIME,
-}
+_CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI_EXPIRE_TIME.config.ttl = None
+_CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI_EXPIRE_TIME.config.expire_time = (
+    _EXPIRE_TIME
+)
+_CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI_EXPIRE_TIME.config.display_name = (
+    'test cache'
+)
 
 _CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE_EXPIRE_TIME = deepcopy(
     _CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE
 )
-_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE_EXPIRE_TIME.config = {
-    'display_name': 'test cache',
-    'system_instruction': 'What is the sum of the two pdfs?',
-    'expire_time': _EXPIRE_TIME,
-}
+_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE_EXPIRE_TIME.config.ttl = None
+_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE_EXPIRE_TIME.config.expire_time = (
+    _EXPIRE_TIME
+)
+_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE_EXPIRE_TIME.config.display_name = (
+    'test cache'
+)
 
 
 # Replay mode is not supported for caches tests due to the error message
@@ -127,6 +143,12 @@ test_table: list[pytest_helper.TestTableItem] = [
         name='test_caches_create_with_gcs_uri',
         exception_if_mldev='INVALID_ARGUMENT',
         parameters=_CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI,
+    ),
+    pytest_helper.TestTableItem(
+        name='test_caches_create_with_gcs_uri_cmek',
+        exception_if_mldev='not supported',
+        exception_if_vertex='INVALID_ARGUMENT',  # The key is invalid.
+        parameters=_CREATE_CACHED_CONTENT_PARAMETERS_GCS_URI_CMEK,
     ),
     pytest_helper.TestTableItem(
         name='test_caches_create_with_gcs_uri_expire_time',
@@ -179,12 +201,10 @@ async def test_async_googleai_file_create(client):
     with pytest.raises(Exception):
       await client.aio.caches.create(
           model=_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE.model,
-          contents=_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE.contents,
           config=_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE.config,
       )
   else:
     await client.aio.caches.create(
         model=_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE.model,
-        contents=_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE.contents,
         config=_CREATE_CACHED_CONTENT_PARAMETERS_GOOGLEAI_FILE.config,
     )

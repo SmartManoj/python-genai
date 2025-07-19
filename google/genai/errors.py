@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,44 +16,56 @@
 """Error classes for the GenAI SDK."""
 
 from typing import Any, Optional, TYPE_CHECKING, Union
-
-import requests
+import httpx
+import json
+from . import _common
 
 
 if TYPE_CHECKING:
   from .replay_api_client import ReplayResponse
+  import aiohttp
 
 
 class APIError(Exception):
   """General errors raised by the GenAI API."""
   code: int
-  response: requests.Response
+  response: Union['ReplayResponse', httpx.Response]
 
-  message: str = ''
-  status: str = 'UNKNOWN'
-  details: Optional[Any] = None
+  status: Optional[str] = None
+  message: Optional[str] = None
 
   def __init__(
-      self, code: int, response: Union[requests.Response, 'ReplayResponse']
+      self,
+      code: int,
+      response_json: Any,
+      response: Optional[
+          Union['ReplayResponse', httpx.Response, 'aiohttp.ClientResponse']
+      ] = None,
   ):
-    self.code = code
     self.response = response
+    self.details = response_json
+    self.message = self._get_message(response_json)
+    self.status = self._get_status(response_json)
+    self.code = code if code else self._get_code(response_json)
 
-    if isinstance(response, requests.Response):
-      try:
-        raw_error = response.json().get('error', {})
-      except requests.exceptions.JSONDecodeError:
-        raw_error = {'message': response.text, 'status': response.reason}
-    else:
-      raw_error = response.body_segments[0].get('error', {})
+    super().__init__(f'{self.code} {self.status}. {self.details}')
 
-    self.message = raw_error.get('message', '')
-    self.status = raw_error.get('status', 'UNKNOWN')
-    self.details = raw_error.get('details', None)
+  def _get_status(self, response_json: Any) -> Any:
+    return response_json.get(
+        'status', response_json.get('error', {}).get('status', None)
+    )
 
-    super().__init__(f'{self.code} {self.status}. {self.message}')
+  def _get_message(self, response_json: Any) -> Any:
+    return response_json.get(
+        'message', response_json.get('error', {}).get('message', None)
+    )
 
-  def _to_replay_record(self):
+  def _get_code(self, response_json: Any) -> Any:
+    return response_json.get(
+        'code', response_json.get('error', {}).get('code', None)
+    )
+
+  def _to_replay_record(self) -> dict[str, Any]:
     """Returns a dictionary representation of the error for replay recording.
 
     details is not included since it may expose internal information in the
@@ -69,19 +81,83 @@ class APIError(Exception):
 
   @classmethod
   def raise_for_response(
-      cls, response: Union[requests.Response, 'ReplayResponse']
-  ):
+      cls, response: Union['ReplayResponse', httpx.Response]
+  ) -> None:
     """Raises an error with detailed error message if the response has an error status."""
     if response.status_code == 200:
       return
 
+    if isinstance(response, httpx.Response):
+      try:
+        response.read()
+        response_json = response.json()
+      except json.decoder.JSONDecodeError:
+        message = response.text
+        response_json = {
+            'message': message,
+            'status': response.reason_phrase,
+        }
+    else:
+      response_json = response.body_segments[0].get('error', {})
+
     status_code = response.status_code
     if 400 <= status_code < 500:
-      raise ClientError(status_code, response)
+      raise ClientError(status_code, response_json, response)
     elif 500 <= status_code < 600:
-      raise ServerError(status_code, response)
+      raise ServerError(status_code, response_json, response)
     else:
-      raise cls(status_code, response)
+      raise cls(status_code, response_json, response)
+
+  @classmethod
+  async def raise_for_async_response(
+      cls,
+      response: Union[
+          'ReplayResponse', httpx.Response, 'aiohttp.ClientResponse'
+      ],
+  ) -> None:
+    """Raises an error with detailed error message if the response has an error status."""
+    status_code = 0
+    response_json = None
+    if isinstance(response, httpx.Response):
+      if response.status_code == 200:
+        return
+      try:
+        await response.aread()
+        response_json = response.json()
+      except json.decoder.JSONDecodeError:
+        message = response.text
+        response_json = {
+            'message': message,
+            'status': response.reason_phrase,
+        }
+      status_code = response.status_code
+    else:
+      try:
+        import aiohttp  # pylint: disable=g-import-not-at-top
+
+        if isinstance(response, aiohttp.ClientResponse):
+          if response.status == 200:
+            return
+          try:
+            response_json = await response.json()
+          except aiohttp.client_exceptions.ContentTypeError:
+            message = await response.text()
+            response_json = {
+                'message': message,
+                'status': response.reason,
+            }
+          status_code = response.status
+        else:
+          response_json = response.body_segments[0].get('error', {})
+      except ImportError:
+        response_json = response.body_segments[0].get('error', {})
+
+    if 400 <= status_code < 500:
+      raise ClientError(status_code, response_json, response)
+    elif 500 <= status_code < 600:
+      raise ServerError(status_code, response_json, response)
+    else:
+      raise cls(status_code, response_json, response)
 
 
 class ClientError(APIError):
@@ -94,7 +170,7 @@ class ServerError(APIError):
   pass
 
 
-class UnkownFunctionCallArgumentError(ValueError):
+class UnknownFunctionCallArgumentError(ValueError):
   """Raised when the function call argument cannot be converted to the parameter annotation."""
 
   pass
@@ -108,3 +184,6 @@ class FunctionInvocationError(ValueError):
   """Raised when the function cannot be invoked with the given arguments."""
 
   pass
+
+
+ExperimentalWarning = _common.ExperimentalWarning

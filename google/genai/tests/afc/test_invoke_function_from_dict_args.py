@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 from typing import Union
 import pydantic
 import pytest
+import sys
 from ... import errors
 from ..._extra_utils import invoke_function_from_dict_args
 
@@ -52,6 +53,10 @@ def test_builtin_primitive_types():
   assert actual_response == expected_response
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason='| is only supported in Python 3.9 and above.',
+)
 def test_builtin_compound_types():
   def func_under_test(x: list[int], y: dict[str, float]):
     return {
@@ -176,7 +181,7 @@ def test_unknown_pydantic_model_argument():
 
   original_args = {'x': {'key3_simple': 1, 'key2_simple': 1.0}}
 
-  with pytest.raises(errors.UnkownFunctionCallArgumentError):
+  with pytest.raises(errors.UnknownFunctionCallArgumentError):
     invoke_function_from_dict_args(original_args, func_under_test)
 
 
@@ -194,7 +199,7 @@ def test_unknown_pydantic_model_argument_with_union_type():
 
   original_args = {'x': {'key5_simple': 1, 'key4_simple': 1.0}}
 
-  with pytest.raises(errors.UnkownFunctionCallArgumentError):
+  with pytest.raises(errors.UnknownFunctionCallArgumentError):
     invoke_function_from_dict_args(original_args, func_under_test)
 
 
@@ -208,7 +213,7 @@ def test_unknown_pydantic_model_argument_with_union_type_and_builtin_type():
 
   original_args = {'x': {'key5_simple': 1, 'key4_simple': 1.0}}
 
-  with pytest.raises(errors.UnkownFunctionCallArgumentError):
+  with pytest.raises(errors.UnknownFunctionCallArgumentError):
     invoke_function_from_dict_args(original_args, func_under_test)
 
 
@@ -216,15 +221,15 @@ def test_incompatible_value_and_annotation():
   def func_under_test(x: int):
     return x + 1
 
-  with pytest.raises(errors.UnkownFunctionCallArgumentError):
+  with pytest.raises(errors.UnknownFunctionCallArgumentError):
     invoke_function_from_dict_args({'x': {'k': 'v'}}, func_under_test)
-  with pytest.raises(errors.UnkownFunctionCallArgumentError):
+  with pytest.raises(errors.UnknownFunctionCallArgumentError):
     invoke_function_from_dict_args({'x': 'a'}, func_under_test)
-  with pytest.raises(errors.UnkownFunctionCallArgumentError):
+  with pytest.raises(errors.UnknownFunctionCallArgumentError):
     invoke_function_from_dict_args({'x': []}, func_under_test)
-  with pytest.raises(errors.UnkownFunctionCallArgumentError):
+  with pytest.raises(errors.UnknownFunctionCallArgumentError):
     invoke_function_from_dict_args({'x': 1.0}, func_under_test)
-  with pytest.raises(errors.UnkownFunctionCallArgumentError):
+  with pytest.raises(errors.UnknownFunctionCallArgumentError):
     invoke_function_from_dict_args({'x': {}}, func_under_test)
 
 

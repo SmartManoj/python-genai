@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import http
 
 from ... import _api_client as api_client
 from ... import Client
+from ... import types
 
 
 def build_test_client(monkeypatch):
@@ -38,7 +39,7 @@ def test_join_url_path_base_url_with_trailing_slash_and_path_with_leading_slash(
 
 def test_join_url_path_with_base_url_with_trailing_slash_and_path_without_leading_slash():
   base_url = 'https://fake-url.com/some_path/'
-  path = "v1beta/models"
+  path = 'v1beta/models'
   assert (
       api_client._join_url_path(base_url, path)
       == 'https://fake-url.com/some_path/v1beta/models'
@@ -46,8 +47,8 @@ def test_join_url_path_with_base_url_with_trailing_slash_and_path_without_leadin
 
 
 def test_join_url_path_with_base_url_without_trailing_slash_and_path_with_leading_slash():
-  base_url = "https://fake-url.com/some_path"
-  path = "/v1beta/models"
+  base_url = 'https://fake-url.com/some_path'
+  path = '/v1beta/models'
   assert (
       api_client._join_url_path(base_url, path)
       == 'https://fake-url.com/some_path/v1beta/models'
@@ -82,7 +83,7 @@ def test_join_url_path_base_url_without_path_without_trailing_slash():
 
 
 def test_build_request_sets_library_version_headers(monkeypatch):
-  request_client = build_test_client(monkeypatch).models.api_client
+  request_client = build_test_client(monkeypatch).models._api_client
   request = request_client._build_request('GET', 'test/path', {'key': 'value'})
   assert 'google-genai-sdk/' in request.headers['user-agent']
   assert 'gl-python/' in request.headers['user-agent']
@@ -91,16 +92,15 @@ def test_build_request_sets_library_version_headers(monkeypatch):
 
 
 def test_build_request_appends_to_user_agent_headers(monkeypatch):
-  request_client = build_test_client(monkeypatch).models.api_client
+  request_client = build_test_client(monkeypatch).models._api_client
   request = request_client._build_request(
       'GET',
       'test/path',
       {'key': 'value'},
-      api_client.HttpOptions(
-          url='test/url',
+      types.HttpOptionsDict(
+          base_url='test/url',
           api_version='1',
           headers={'user-agent': 'test-user-agent'},
-          response_payload=None,
       ),
   )
   assert 'test-user-agent' in request.headers['user-agent']
@@ -110,16 +110,15 @@ def test_build_request_appends_to_user_agent_headers(monkeypatch):
 
 
 def test_build_request_appends_to_goog_api_client_headers(monkeypatch):
-  request_client = build_test_client(monkeypatch).models.api_client
+  request_client = build_test_client(monkeypatch).models._api_client
   request = request_client._build_request(
       'GET',
       'test/path',
       {'key': 'value'},
-      api_client.HttpOptions(
-          url='test/url',
+      types.HttpOptionsDict(
+          base_url='test/url',
           api_version='1',
           headers={'x-goog-api-client': 'test-goog-api-client'},
-          response_payload=None,
       ),
   )
   assert 'google-genai-sdk/' in request.headers['user-agent']
@@ -132,16 +131,15 @@ def test_build_request_keeps_sdk_version_headers(monkeypatch):
   headers_to_inject = {}
   api_client._append_library_version_headers(headers_to_inject)
   assert 'google-genai-sdk/' in headers_to_inject['user-agent']
-  request_client = build_test_client(monkeypatch).models.api_client
+  request_client = build_test_client(monkeypatch).models._api_client
   request = request_client._build_request(
       'GET',
       'test/path',
       {'key': 'value'},
-      api_client.HttpOptions(
-          url='test/url',
+      types.HttpOptionsDict(
+          base_url='test/url',
           api_version='1',
           headers=headers_to_inject,
-          response_payload=None,
       ),
   )
   assert 'google-genai-sdk/' in request.headers['user-agent']

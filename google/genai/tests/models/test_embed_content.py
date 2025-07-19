@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 import pytest
 
+from ... import _transformers as t
 from ... import types
 from .. import pytest_helper
 
@@ -28,21 +29,23 @@ test_table: list[pytest_helper.TestTableItem] = [
         name='test_single_text',
         parameters=types._EmbedContentParameters(
             model='text-embedding-004',
-            contents='What is your name?',
+            contents=t.t_contents('What is your name?'),
         ),
     ),
     pytest_helper.TestTableItem(
         name='test_multi_texts_with_config',
         parameters=types._EmbedContentParameters(
             model='text-embedding-004',
-            contents=['What is your name?', 'I am a model.'],
+            contents=[
+                t.t_content('What is your name?'),
+                t.t_content('I am a model.'),
+            ],
             config={
                 'output_dimensionality': 10,
                 'title': 'test_title',
                 'task_type': 'RETRIEVAL_DOCUMENT',
                 'http_options': {
                     'headers': {'test': 'headers'},
-                    'uri': 'test_uri',
                 },
             },
         ),
@@ -51,25 +54,25 @@ test_table: list[pytest_helper.TestTableItem] = [
         name='test_single_text_with_mime_type_not_supported_in_mldev',
         parameters=types._EmbedContentParameters(
             model='text-embedding-004',
-            contents='What is your name?',
+            contents=t.t_contents('What is your name?'),
             config={
                 'output_dimensionality': 10,
                 'mime_type': 'text/plain',
             },
         ),
-        exception_if_mldev='mime_type parameter is not supported',
+        exception_if_mldev='parameter is not supported',
     ),
     pytest_helper.TestTableItem(
         name='test_single_text_with_auto_truncate_not_supported_in_mldev',
         parameters=types._EmbedContentParameters(
             model='text-embedding-004',
-            contents='What is your name?',
+            contents=t.t_contents('What is your name?'),
             config={
                 'output_dimensionality': 10,
                 'auto_truncate': True,
             },
         ),
-        exception_if_mldev='auto_truncate parameter is not supported',
+        exception_if_mldev='parameter is not supported',
     ),
 ]
 

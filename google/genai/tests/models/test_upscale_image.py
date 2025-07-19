@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,16 +31,27 @@ IMAGE_FILE_PATH = os.path.abspath(
 
 test_table: list[pytest_helper.TestTableItem] = [
     pytest_helper.TestTableItem(
+        name='test_upscale_no_config',
+        exception_if_mldev='only supported in the Vertex AI client',
+        parameters=types.UpscaleImageParameters(
+            model='imagen-3.0-generate-001',
+            image=types.Image.from_file(location=IMAGE_FILE_PATH),
+            upscale_factor='x2',
+        ),
+    ),
+    pytest_helper.TestTableItem(
         name='test_upscale',
         exception_if_mldev='only supported in the Vertex AI client',
         parameters=types.UpscaleImageParameters(
             model='imagen-3.0-generate-001',
-            image=types.Image.from_file(IMAGE_FILE_PATH),
+            image=types.Image.from_file(location=IMAGE_FILE_PATH),
+            upscale_factor='x2',
             config={
-                'upscale_factor': 'x2',
                 'include_rai_reason': True,
                 'output_mime_type': 'image/jpeg',
                 'output_compression_quality': 80,
+                'enhance_input_image': True,
+                'image_preservation_factor': 0.6,
             },
         ),
     ),
@@ -60,10 +71,10 @@ def test_upscale_extra_config_parameters(client):
     # User is not allowed to set mode or number_of_images
     client.models.upscale_image(
         model='imagen-3.0-generate-001',
-        image=types.Image.from_file(IMAGE_FILE_PATH),
+        image=types.Image.from_file(location=IMAGE_FILE_PATH),
+        upscale_factor='x2',
         config={
             'mode': 'upscale',
-            'upscale_factor': 'x2',
             'number_of_images': 1,
         }
     )
@@ -79,12 +90,14 @@ async def test_upscale_async(client):
   with pytest_helper.exception_if_mldev(client, ValueError):
     response = await client.aio.models.upscale_image(
         model='imagen-3.0-generate-001',
-        image=types.Image.from_file(IMAGE_FILE_PATH),
+        image=types.Image.from_file(location=IMAGE_FILE_PATH),
+        upscale_factor='x2',
         config={
-            'upscale_factor': 'x2',
             'include_rai_reason': True,
             'output_mime_type': 'image/jpeg',
             'output_compression_quality': 80,
+            'enhance_input_image': True,
+            'image_preservation_factor': 0.6,
         },
     )
     assert response.generated_images[0].image.image_bytes
@@ -98,10 +111,10 @@ async def test_upscale_extra_config_parameters_async(client):
     # User is not allowed to set mode or number_of_images
     await client.aio.models.upscale_image(
         model='imagen-3.0-generate-001',
-        image=types.Image.from_file(IMAGE_FILE_PATH),
+        image=types.Image.from_file(location=IMAGE_FILE_PATH),
+        upscale_factor='x2',
         config={
             'mode': 'upscale',
-            'upscale_factor': 'x2',
             'number_of_images': 1,
         },
     )
